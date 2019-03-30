@@ -19,9 +19,12 @@ public sealed class Threading : Controller<Threading>
 	
 	void Awake()
 	{
-		Debug.Log("Test");
-		
 		_tasks = new Queue<Action>();
+		_dispatched = new List<Action>();
+		
+		var thread = Thread.CurrentThread;
+		_mainThread = thread.ManagedThreadId;
+		
 		_workers = new Thread[Environment.ProcessorCount];
 		for (var i = 0; i < _workers.Length; i++)
 		{
@@ -34,14 +37,8 @@ public sealed class Threading : Controller<Threading>
 			_workers[i] = t;
 			t.Start();
 		}
-		
-		_dispatched = new List<Action>();
-		
-		var thread = Thread.CurrentThread;
-		_mainThread = thread.ManagedThreadId;
 	}
 	
-	/// <inheritdoc />
 	void OnDisable()
 	{
 		if (_workers == null)
@@ -65,10 +62,10 @@ public sealed class Threading : Controller<Threading>
 	{
 		Monitor.Enter(_dispatched);
 		
-#       if UNPROTECTED_CALLS
+#if UNPROTECTED_CALLS
 		for (var i = 0; i < _dispatched.Count; i++)
 			_dispatched[i]();
-#       else
+#else
 		for (var i = 0; i < _dispatched.Count; i++)
 		{
 			var action = _dispatched[i];
@@ -82,7 +79,7 @@ public sealed class Threading : Controller<Threading>
 				Debug.LogError(e.StackTrace);
 			}
 		}
-#       endif
+#endif
 		
 		_dispatched.Clear();
 		Monitor.PulseAll(_dispatched);
@@ -116,9 +113,9 @@ public sealed class Threading : Controller<Threading>
 				break;
 			
 			// Run actual method
-#           if UNPROTECTED_CALLS
+#if UNPROTECTED_CALLS
 			item.Invoke();
-#           else
+#else
 			try
 			{
 				item.Invoke();
@@ -128,9 +125,10 @@ public sealed class Threading : Controller<Threading>
 				Debug.LogError(e.Message);
 				Debug.LogError(e.StackTrace);
 			}
-#           endif
+#endif
 		}
 	}
+	
 	
 	/// <summary>
 	///     Enqueues a tasks that will be called by a worker thread.
